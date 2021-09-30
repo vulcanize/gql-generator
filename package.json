@@ -4,11 +4,12 @@
   "description": "",
   "main": "index.js",
   "bin": {
-    "gqlg": "index.js"
+    "gqlg": "bin/gqlg"
   },
   "scripts": {
     "test": "mocha -u qunit",
-    "lint": "./node_modules/.bin/eslint ./index.js"
+    "lint": "./node_modules/.bin/eslint ./index.js",
+    "start": "node bin/gqlg"
   },
   "repository": {
     "type": "git",

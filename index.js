@@ -1,32 +1,15 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const program = require('commander');
 const { Source, buildSchema } = require('graphql');
 const del = require('del');
 
-program
-  .option('--schemaFilePath [value]', 'path of your graphql schema file')
-  .option('--destDirPath [value]', 'dir you want to store the generated queries')
-  .option('--depthLimit [value]', 'query depth you want to limit(The default is 100)')
-  .option('-C, --includeDeprecatedFields [value]', 'Flag to include deprecated fields (The default is to exclude)')
-  .parse(process.argv);
+let schemaFilePath;
+let destDirPath;
+let depthLimit;
+let includeDeprecatedFields;
 
-const {
-  schemaFilePath, destDirPath, depthLimit = 100, includeDeprecatedFields = false,
-} = program;
-const typeDef = fs.readFileSync(schemaFilePath, 'utf-8');
-const source = new Source(typeDef);
-const gqlSchema = buildSchema(source);
-
-del.sync(destDirPath);
-path.resolve(destDirPath).split(path.sep).reduce((before, cur) => {
-  const pathTmp = path.join(before, cur + path.sep);
-  if (!fs.existsSync(pathTmp)) {
-    fs.mkdirSync(pathTmp);
-  }
-  return path.join(before, cur + path.sep);
-}, '');
+let gqlSchema;
 let indexJsExportAll = '';
 
 /**
@@ -39,19 +22,23 @@ const getFieldArgsDict = (
   field,
   duplicateArgCounts,
   allArgsDict = {},
-) => field.args.reduce((o, arg) => {
-  if (arg.name in duplicateArgCounts) {
-    const index = duplicateArgCounts[arg.name] + 1;
-    duplicateArgCounts[arg.name] = index;
-    o[`${arg.name}${index}`] = arg;
-  } else if (allArgsDict[arg.name]) {
-    duplicateArgCounts[arg.name] = 1;
-    o[`${arg.name}1`] = arg;
-  } else {
-    o[arg.name] = arg;
-  }
-  return o;
-}, {});
+) => {
+  const duplicateArgCountsCopy = duplicateArgCounts;
+  return field.args.reduce((o, arg) => {
+    const oCopy = 0;
+    if (arg.name in duplicateArgCounts) {
+      const index = duplicateArgCounts[arg.name] + 1;
+      duplicateArgCountsCopy[arg.name] = index;
+      oCopy[`${arg.name}${index}`] = arg;
+    } else if (allArgsDict[arg.name]) {
+      duplicateArgCountsCopy[arg.name] = 1;
+      oCopy[`${arg.name}1`] = arg;
+    } else {
+      oCopy[arg.name] = arg;
+    }
+    return oCopy;
+  }, {});
+};
 
 /**
  * Generate variables string
@@ -198,22 +185,48 @@ const generateFile = (obj, description) => {
   indexJsExportAll += `module.exports.${outputFolderName} = require('./${outputFolderName}');\n`;
 };
 
-if (gqlSchema.getMutationType()) {
-  generateFile(gqlSchema.getMutationType().getFields(), 'Mutation');
-} else {
-  console.log('[gqlg warning]:', 'No mutation type found in your schema');
+function gqlGenerate(schemaFilePathArg, destDirPathArg, depthLimitArg, includeDeprecatedFieldsArg) {
+  schemaFilePath = path.resolve(schemaFilePathArg);
+  destDirPath = destDirPathArg;
+  depthLimit = depthLimitArg || 100;
+  includeDeprecatedFields = includeDeprecatedFieldsArg || false;
+
+  const typeDef = fs.readFileSync(schemaFilePath, 'utf-8');
+  const source = new Source(typeDef);
+  gqlSchema = buildSchema(source);
+
+  del.sync(destDirPath);
+  path.resolve(destDirPath).split(path.sep).reduce((before, cur) => {
+    const pathTmp = path.join(before, cur + path.sep);
+    if (!fs.existsSync(pathTmp)) {
+      fs.mkdirSync(pathTmp);
+    }
+    return path.join(before, cur + path.sep);
+  }, '');
+
+  if (gqlSchema.getMutationType()) {
+    generateFile(gqlSchema.getMutationType().getFields(), 'Mutation');
+  } else {
+    console.log('[gqlg warning]:', 'No mutation type found in your schema');
+  }
+
+  if (gqlSchema.getQueryType()) {
+    generateFile(gqlSchema.getQueryType().getFields(), 'Query');
+  } else {
+    console.log('[gqlg warning]:', 'No query type found in your schema');
+  }
+
+  if (gqlSchema.getSubscriptionType()) {
+    generateFile(gqlSchema.getSubscriptionType().getFields(), 'Subscription');
+  } else {
+    console.log('[gqlg warning]:', 'No subscription type found in your schema');
+  }
+
+  fs.writeFileSync(path.join(destDirPath, 'index.js'), indexJsExportAll);
 }
 
-if (gqlSchema.getQueryType()) {
-  generateFile(gqlSchema.getQueryType().getFields(), 'Query');
-} else {
-  console.log('[gqlg warning]:', 'No query type found in your schema');
+function main(args) {
+  gqlGenerate(...args);
 }
 
-if (gqlSchema.getSubscriptionType()) {
-  generateFile(gqlSchema.getSubscriptionType().getFields(), 'Subscription');
-} else {
-  console.log('[gqlg warning]:', 'No subscription type found in your schema');
-}
-
-fs.writeFileSync(path.join(destDirPath, 'index.js'), indexJsExportAll);
+module.exports = { main, gqlGenerate };
