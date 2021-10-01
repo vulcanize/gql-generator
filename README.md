@@ -30,49 +30,76 @@ query user($id: Int!) {
 ```
 
 ## Usage
-```bash
-# Install
-npm install gql-generator -g
 
-# see the usage
-gqlg --help
+* Install
 
-# Generate sample queries from schema file
-gqlg --schemaFilePath ./example/sampleTypeDef.graphql --destDirPath ./example/output --depthLimit 5
-```
+  ```bash
+  npm install https://github.com/vulcanize/gql-generator.git -g
+  ```
 
-Now the queries generated from the [`sampleTypeDef.graphql`](./example/sampleTypeDef.graphql) can be found in the destDir: [`./example/output`](./example/output).
+* CLI:
 
-This tool generate 3 folders holding the queries: mutations, queries and subscriptions. And also `index.js` files to export the queries in each folder.
+  ```bash
+  gqlg <schemaFilePath> <destDirPath> [depthLimit] [includeDeprecatedFields]
+  ```
 
-You can require the queries like this:
+  * `schemaFilePath`: Path of your graphql schema file.
+  * `destDirPath`: Dir you want to store the generated queries.
+  * `depthLimit`: Query depth you want to limit (default: `100`).
+  * `includeDeprecatedFields`: Flag to include deprecated fields (default: `false`).
 
-```js
-// require all the queries
-const queries = require('./example/output');
-// require mutations only
-const mutations = require('./example/output/mutations');
+  Example:
 
-// sample content
-console.log(queries.mutations.signup);
-console.log(mutations.signup);
-/*
-mutation signup($username: String!, email: String!, password: String!){
-  signup(username: $username, email: $email, password: $password){
-    token
-    user {
-      id
-      username
-      email
-      createdAt
+  ```bash
+  gqlg ./example/sampleTypeDef.graphql ./example/output 5
+  ```
+
+  Now the queries generated from the [`sampleTypeDef.graphql`](./example/sampleTypeDef.graphql) can be found in the destDir: [`./example/output`](./example/output).
+
+* As a package:
+
+  Example:
+
+  ```js
+  const fs = require('fs');
+  const path = require('path');
+  const { gqlGenerate } = require('gql-generator');
+
+  const schemaContent = fs.readFileSync(path.resolve('./example/sampleTypeDef.graphql'), 'utf-8');
+  const gqlDir = './example/output';
+  gqlGenerate(schemaContent, gqlDir);
+  ```
+
+* This tool generate 3 folders holding the queries: mutations, queries and subscriptions. And also `index.ts` files to export the queries in each folder.
+
+* You can require the queries like this:
+
+  ```js
+  // require all the queries
+  const queries = require('./example/output');
+  // require mutations only
+  const mutations = require('./example/output/mutations');
+
+  // sample content
+  console.log(queries.mutations.signup);
+  console.log(mutations.signup);
+  /*
+  mutation signup($username: String!, email: String!, password: String!){
+    signup(username: $username, email: $email, password: $password){
+      token
+      user {
+        id
+        username
+        email
+        createdAt
+      }
     }
   }
-}
-*/
+  */
 
-```
+  ```
 
-The tool will automatically exclude any `@deprecated` schema fields (see more on schema directives [here](https://www.apollographql.com/docs/graphql-tools/schema-directives)). To change this behavior to include deprecated fields you can use the `includeDeprecatedFields` flag when running the tool, e.g. `gqlg --includeDeprecatedFields`.
+* The tool will automatically exclude any `@deprecated` schema fields (see more on schema directives [here](https://www.apollographql.com/docs/graphql-tools/schema-directives)). To change this behavior to include deprecated fields you can use the `includeDeprecatedFields` flag when running the tool, e.g. `gqlg --includeDeprecatedFields`.
 
 ## Usage example
 
