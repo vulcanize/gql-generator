@@ -5,28 +5,11 @@ const program = require('commander');
 const { Source, buildSchema } = require('graphql');
 const del = require('del');
 
-program
-  .option('--schemaFilePath [value]', 'path of your graphql schema file')
-  .option('--destDirPath [value]', 'dir you want to store the generated queries')
-  .option('--depthLimit [value]', 'query depth you want to limit(The default is 100)')
-  .option('-C, --includeDeprecatedFields [value]', 'Flag to include deprecated fields (The default is to exclude)')
-  .parse(process.argv);
+let destDirPath;
+let depthLimit;
+let includeDeprecatedFields;
 
-const {
-  schemaFilePath, destDirPath, depthLimit = 100, includeDeprecatedFields = false,
-} = program;
-const typeDef = fs.readFileSync(schemaFilePath, 'utf-8');
-const source = new Source(typeDef);
-const gqlSchema = buildSchema(source);
-
-del.sync(destDirPath);
-path.resolve(destDirPath).split(path.sep).reduce((before, cur) => {
-  const pathTmp = path.join(before, cur + path.sep);
-  if (!fs.existsSync(pathTmp)) {
-    fs.mkdirSync(pathTmp);
-  }
-  return path.join(before, cur + path.sep);
-}, '');
+let gqlSchema;
 let indexJsExportAll = '';
 
 /**
@@ -39,19 +22,23 @@ const getFieldArgsDict = (
   field,
   duplicateArgCounts,
   allArgsDict = {},
-) => field.args.reduce((o, arg) => {
-  if (arg.name in duplicateArgCounts) {
-    const index = duplicateArgCounts[arg.name] + 1;
-    duplicateArgCounts[arg.name] = index;
-    o[`${arg.name}${index}`] = arg;
-  } else if (allArgsDict[arg.name]) {
-    duplicateArgCounts[arg.name] = 1;
-    o[`${arg.name}1`] = arg;
-  } else {
-    o[arg.name] = arg;
-  }
-  return o;
-}, {});
+) => {
+  const duplicateArgCountsCopy = duplicateArgCounts;
+  return field.args.reduce((o, arg) => {
+    const oCopy = o;
+    if (arg.name in duplicateArgCounts) {
+      const index = duplicateArgCounts[arg.name] + 1;
+      duplicateArgCountsCopy[arg.name] = index;
+      oCopy[`${arg.name}${index}`] = arg;
+    } else if (allArgsDict[arg.name]) {
+      duplicateArgCountsCopy[arg.name] = 1;
+      oCopy[`${arg.name}1`] = arg;
+    } else {
+      oCopy[arg.name] = arg;
+    }
+    return oCopy;
+  }, {});
+};
 
 /**
  * Generate variables string
@@ -161,7 +148,7 @@ const generateQuery = (
  * @param description description of the current object
  */
 const generateFile = (obj, description) => {
-  let indexJs = 'const fs = require(\'fs\');\nconst path = require(\'path\');\n\n';
+  let indexJs = 'import fs from \'fs\';\nimport path from \'path\';\n\n';
   let outputFolderName;
   switch (description) {
     case 'Mutation':
@@ -191,29 +178,68 @@ const generateFile = (obj, description) => {
       let query = queryResult.queryStr;
       query = `${description.toLowerCase()} ${type}${varsToTypesStr ? `(${varsToTypesStr})` : ''}{\n${query}\n}`;
       fs.writeFileSync(path.join(writeFolder, `./${type}.gql`), query);
-      indexJs += `module.exports.${type} = fs.readFileSync(path.join(__dirname, '${type}.gql'), 'utf8');\n`;
+      indexJs += `export const ${type} = fs.readFileSync(path.join(__dirname, '${type}.gql'), 'utf8');\n`;
     }
   });
-  fs.writeFileSync(path.join(writeFolder, 'index.js'), indexJs);
-  indexJsExportAll += `module.exports.${outputFolderName} = require('./${outputFolderName}');\n`;
+  fs.writeFileSync(path.join(writeFolder, 'index.ts'), indexJs);
+  indexJsExportAll += `export * as ${outputFolderName} from './${outputFolderName}';\n`;
 };
 
-if (gqlSchema.getMutationType()) {
-  generateFile(gqlSchema.getMutationType().getFields(), 'Mutation');
-} else {
-  console.log('[gqlg warning]:', 'No mutation type found in your schema');
+function gqlGenerate(typeDef, destDirPathArg, depthLimitArg, includeDeprecatedFieldsArg) {
+  destDirPath = destDirPathArg;
+  depthLimit = depthLimitArg || 100;
+  includeDeprecatedFields = includeDeprecatedFieldsArg || false;
+
+  const source = new Source(typeDef);
+  gqlSchema = buildSchema(source);
+
+  del.sync(destDirPath, { force: true });
+  path.resolve(destDirPath).split(path.sep).reduce((before, cur) => {
+    const pathTmp = path.join(before, cur + path.sep);
+    if (!fs.existsSync(pathTmp)) {
+      fs.mkdirSync(pathTmp);
+    }
+    return path.join(before, cur + path.sep);
+  }, '');
+
+  if (gqlSchema.getMutationType()) {
+    generateFile(gqlSchema.getMutationType().getFields(), 'Mutation');
+  } else {
+    console.log('[gqlg warning]:', 'No mutation type found in your schema');
+  }
+
+  if (gqlSchema.getQueryType()) {
+    generateFile(gqlSchema.getQueryType().getFields(), 'Query');
+  } else {
+    console.log('[gqlg warning]:', 'No query type found in your schema');
+  }
+
+  if (gqlSchema.getSubscriptionType()) {
+    generateFile(gqlSchema.getSubscriptionType().getFields(), 'Subscription');
+  } else {
+    console.log('[gqlg warning]:', 'No subscription type found in your schema');
+  }
+
+  fs.writeFileSync(path.join(destDirPath, 'index.ts'), indexJsExportAll);
 }
 
-if (gqlSchema.getQueryType()) {
-  generateFile(gqlSchema.getQueryType().getFields(), 'Query');
-} else {
-  console.log('[gqlg warning]:', 'No query type found in your schema');
+function main() {
+  program
+    .option('--schemaFilePath [value]', 'path of your graphql schema file')
+    .option('--destDirPath [value]', 'dir you want to store the generated queries')
+    .option('--depthLimit [value]', 'query depth you want to limit(The default is 100)')
+    .option('-C, --includeDeprecatedFields [value]', 'Flag to include deprecated fields (The default is to exclude)')
+    .parse(process.argv);
+
+  let schemaFilePath;
+  (
+    {
+      schemaFilePath, destDirPath, depthLimit = 100, includeDeprecatedFields = false,
+    } = program
+  );
+
+  const schemaContent = fs.readFileSync(path.resolve(schemaFilePath), 'utf-8');
+  gqlGenerate(schemaContent, destDirPath, depthLimit, includeDeprecatedFields);
 }
 
-if (gqlSchema.getSubscriptionType()) {
-  generateFile(gqlSchema.getSubscriptionType().getFields(), 'Subscription');
-} else {
-  console.log('[gqlg warning]:', 'No subscription type found in your schema');
-}
-
-fs.writeFileSync(path.join(destDirPath, 'index.js'), indexJsExportAll);
+module.exports = { main, gqlGenerate };
