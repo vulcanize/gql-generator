@@ -4,7 +4,6 @@ const path = require('path');
 const { Source, buildSchema } = require('graphql');
 const del = require('del');
 
-let schemaFilePath;
 let destDirPath;
 let depthLimit;
 let includeDeprecatedFields;
@@ -25,7 +24,7 @@ const getFieldArgsDict = (
 ) => {
   const duplicateArgCountsCopy = duplicateArgCounts;
   return field.args.reduce((o, arg) => {
-    const oCopy = 0;
+    const oCopy = o;
     if (arg.name in duplicateArgCounts) {
       const index = duplicateArgCounts[arg.name] + 1;
       duplicateArgCountsCopy[arg.name] = index;
@@ -148,7 +147,7 @@ const generateQuery = (
  * @param description description of the current object
  */
 const generateFile = (obj, description) => {
-  let indexJs = 'const fs = require(\'fs\');\nconst path = require(\'path\');\n\n';
+  let indexJs = 'import fs from \'fs\';\nimport path from \'path\';\n\n';
   let outputFolderName;
   switch (description) {
     case 'Mutation':
@@ -178,24 +177,22 @@ const generateFile = (obj, description) => {
       let query = queryResult.queryStr;
       query = `${description.toLowerCase()} ${type}${varsToTypesStr ? `(${varsToTypesStr})` : ''}{\n${query}\n}`;
       fs.writeFileSync(path.join(writeFolder, `./${type}.gql`), query);
-      indexJs += `module.exports.${type} = fs.readFileSync(path.join(__dirname, '${type}.gql'), 'utf8');\n`;
+      indexJs += `export const ${type} = fs.readFileSync(path.join(__dirname, '${type}.gql'), 'utf8');\n`;
     }
   });
-  fs.writeFileSync(path.join(writeFolder, 'index.js'), indexJs);
-  indexJsExportAll += `module.exports.${outputFolderName} = require('./${outputFolderName}');\n`;
+  fs.writeFileSync(path.join(writeFolder, 'index.ts'), indexJs);
+  indexJsExportAll += `export * as ${outputFolderName} from './${outputFolderName}';\n`;
 };
 
-function gqlGenerate(schemaFilePathArg, destDirPathArg, depthLimitArg, includeDeprecatedFieldsArg) {
-  schemaFilePath = path.resolve(schemaFilePathArg);
+function gqlGenerate(typeDef, destDirPathArg, depthLimitArg, includeDeprecatedFieldsArg) {
   destDirPath = destDirPathArg;
   depthLimit = depthLimitArg || 100;
   includeDeprecatedFields = includeDeprecatedFieldsArg || false;
 
-  const typeDef = fs.readFileSync(schemaFilePath, 'utf-8');
   const source = new Source(typeDef);
   gqlSchema = buildSchema(source);
 
-  del.sync(destDirPath);
+  del.sync(destDirPath, { force: true });
   path.resolve(destDirPath).split(path.sep).reduce((before, cur) => {
     const pathTmp = path.join(before, cur + path.sep);
     if (!fs.existsSync(pathTmp)) {
@@ -222,11 +219,13 @@ function gqlGenerate(schemaFilePathArg, destDirPathArg, depthLimitArg, includeDe
     console.log('[gqlg warning]:', 'No subscription type found in your schema');
   }
 
-  fs.writeFileSync(path.join(destDirPath, 'index.js'), indexJsExportAll);
+  fs.writeFileSync(path.join(destDirPath, 'index.ts'), indexJsExportAll);
 }
 
 function main(args) {
-  gqlGenerate(...args);
+  const [schemaFilePath, ...restArgs] = args;
+  const schemaContent = fs.readFileSync(path.resolve(schemaFilePath), 'utf-8');
+  gqlGenerate(schemaContent, ...restArgs);
 }
 
 module.exports = { main, gqlGenerate };
