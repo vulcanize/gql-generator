@@ -31,16 +31,22 @@ query user($id: Int!) {
 
 ## Usage
 
-* Install
+* Install:
 
   ```bash
   npm install https://github.com/vulcanize/gql-generator.git -g
   ```
 
+* See the usage options:
+
+  ```bash
+  gqlg --help
+  ```
+
 * CLI:
 
   ```bash
-  gqlg <schemaFilePath> <destDirPath> [depthLimit] [includeDeprecatedFields]
+  gqlg --schemaFilePath <schemaFilePath> --destDirPath <destDirPath> --depthLimit [depthLimit] --includeDeprecatedFields [includeDeprecatedFields]
   ```
 
   * `schemaFilePath`: Path of your graphql schema file.
@@ -51,7 +57,7 @@ query user($id: Int!) {
   Example:
 
   ```bash
-  gqlg ./example/sampleTypeDef.graphql ./example/output 5
+  gqlg --schemaFilePath ./example/sampleTypeDef.graphql --destDirPath ./example/output --depthLimit 5
   ```
 
   Now the queries generated from the [`sampleTypeDef.graphql`](./example/sampleTypeDef.graphql) can be found in the destDir: [`./example/output`](./example/output).

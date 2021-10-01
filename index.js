@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const program = require('commander');
 const { Source, buildSchema } = require('graphql');
 const del = require('del');
 
@@ -222,10 +223,23 @@ function gqlGenerate(typeDef, destDirPathArg, depthLimitArg, includeDeprecatedFi
   fs.writeFileSync(path.join(destDirPath, 'index.ts'), indexJsExportAll);
 }
 
-function main(args) {
-  const [schemaFilePath, ...restArgs] = args;
+function main() {
+  program
+    .option('--schemaFilePath [value]', 'path of your graphql schema file')
+    .option('--destDirPath [value]', 'dir you want to store the generated queries')
+    .option('--depthLimit [value]', 'query depth you want to limit(The default is 100)')
+    .option('-C, --includeDeprecatedFields [value]', 'Flag to include deprecated fields (The default is to exclude)')
+    .parse(process.argv);
+
+  let schemaFilePath;
+  (
+    {
+      schemaFilePath, destDirPath, depthLimit = 100, includeDeprecatedFields = false,
+    } = program
+  );
+
   const schemaContent = fs.readFileSync(path.resolve(schemaFilePath), 'utf-8');
-  gqlGenerate(schemaContent, ...restArgs);
+  gqlGenerate(schemaContent, destDirPath, depthLimit, includeDeprecatedFields);
 }
 
 module.exports = { main, gqlGenerate };
