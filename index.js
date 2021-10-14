@@ -5,6 +5,8 @@ const program = require('commander');
 const { Source, buildSchema } = require('graphql');
 const del = require('del');
 
+const INDENT = '  ';
+
 let destDirPath;
 let depthLimit;
 let includeDeprecatedFields;
@@ -103,14 +105,14 @@ const generateQuery = (
   }
 
   if (!(curType.getFields && !childQuery)) {
-    queryStr = `${'    '.repeat(curDepth)}${field.name}`;
+    queryStr = `${INDENT.repeat(curDepth)}${field.name}`;
     if (field.args.length > 0) {
       const dict = getFieldArgsDict(field, duplicateArgCounts, argumentsDict);
       Object.assign(argumentsDict, dict);
       queryStr += `(${getArgsToVarsStr(dict)})`;
     }
     if (childQuery) {
-      queryStr += `{\n${childQuery}\n${'    '.repeat(curDepth)}}`;
+      queryStr += `{\n${childQuery}\n${INDENT.repeat(curDepth)}}`;
     }
   }
 
@@ -118,8 +120,8 @@ const generateQuery = (
   if (curType.astNode && curType.astNode.kind === 'UnionTypeDefinition') {
     const types = curType.getTypes();
     if (types && types.length) {
-      const indent = `${'    '.repeat(curDepth)}`;
-      const fragIndent = `${'    '.repeat(curDepth + 1)}`;
+      const indent = `${INDENT.repeat(curDepth)}`;
+      const fragIndent = `${INDENT.repeat(curDepth + 1)}`;
       queryStr += '{\n';
 
       for (let i = 0, len = types.length; i < len; i++) {
