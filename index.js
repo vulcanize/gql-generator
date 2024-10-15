@@ -7,6 +7,7 @@ const del = require('del');
 
 let destDirPath;
 let depthLimit;
+let excludeNestedArgs;
 let includeDeprecatedFields;
 
 let gqlSchema;
@@ -104,7 +105,8 @@ const generateQuery = (
 
   if (!(curType.getFields && !childQuery)) {
     queryStr = `${'    '.repeat(curDepth)}${field.name}`;
-    if (field.args.length > 0) {
+    // Skip nested args when curDepth > 1 and excludeNestedArgs set
+    if (field.args.length > 0 && (curDepth <= 1 || !excludeNestedArgs)) {
       const dict = getFieldArgsDict(field, duplicateArgCounts, argumentsDict);
       Object.assign(argumentsDict, dict);
       queryStr += `(${getArgsToVarsStr(dict)})`;
@@ -185,10 +187,17 @@ const generateFile = (obj, description) => {
   indexJsExportAll += `export * as ${outputFolderName} from './${outputFolderName}';\n`;
 };
 
-function gqlGenerate(typeDef, destDirPathArg, depthLimitArg, includeDeprecatedFieldsArg) {
+function gqlGenerate(
+  typeDef,
+  destDirPathArg,
+  depthLimitArg,
+  excludeNestedArgsArg = false,
+  includeDeprecatedFieldsArg = false,
+) {
   destDirPath = destDirPathArg;
   depthLimit = depthLimitArg || 100;
-  includeDeprecatedFields = includeDeprecatedFieldsArg || false;
+  excludeNestedArgs = excludeNestedArgsArg;
+  includeDeprecatedFields = includeDeprecatedFieldsArg;
 
   const source = new Source(typeDef);
   gqlSchema = buildSchema(source);
@@ -227,19 +236,21 @@ function main() {
   program
     .option('--schemaFilePath [value]', 'path of your graphql schema file')
     .option('--destDirPath [value]', 'dir you want to store the generated queries')
-    .option('--depthLimit [value]', 'query depth you want to limit(The default is 100)')
-    .option('-C, --includeDeprecatedFields [value]', 'Flag to include deprecated fields (The default is to exclude)')
+    .option('--depthLimit [value]', 'query depth you want to limit (The default is 100)', 100)
+    .option('--excludeNestedArgs [value]', 'Flag to exclude nested arguments (The default is to include)', false)
+    .option('-C, --includeDeprecatedFields [value]', 'Flag to include deprecated fields (The default is to exclude)', false)
     .parse(process.argv);
 
   let schemaFilePath;
   (
     {
-      schemaFilePath, destDirPath, depthLimit = 100, includeDeprecatedFields = false,
+      schemaFilePath, destDirPath, depthLimit,
+      excludeNestedArgs, includeDeprecatedFields,
     } = program
   );
 
   const schemaContent = fs.readFileSync(path.resolve(schemaFilePath), 'utf-8');
-  gqlGenerate(schemaContent, destDirPath, depthLimit, includeDeprecatedFields);
+  gqlGenerate(schemaContent, destDirPath, depthLimit, excludeNestedArgs, includeDeprecatedFields);
 }
 
 module.exports = { main, gqlGenerate };
