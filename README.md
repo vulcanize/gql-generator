@@ -3,6 +3,7 @@
 Generate queries from graphql schema, used for writing api test.
 
 ## Example
+
 ```gql
 # Sample schema
 type Query {
@@ -52,6 +53,7 @@ query user($id: Int!) {
   * `schemaFilePath`: Path of your graphql schema file.
   * `destDirPath`: Dir you want to store the generated queries.
   * `depthLimit`: Query depth you want to limit (default: `100`).
+  * `excludeNestedArgs`: Flag to exclude nested arguments (default: `false`).
   * `includeDeprecatedFields`: Flag to include deprecated fields (default: `false`).
 
   Example:
@@ -109,7 +111,7 @@ query user($id: Int!) {
 
 ## Usage example
 
-Say you have a graphql schema like this: 
+Say you have a graphql schema like this:
 
 ```gql
 type Mutation {
@@ -189,7 +191,7 @@ test('signup', async () => {
 
 ## Notes
 
-- As this tool is used for tests, it expands all of the fields in a query. There might be recursive fields in the query, so `gqlg` ignores the types which have been added in the parent queries already.
-- Variable names are derived from argument names, so variables generated from multiple occurrences of the same argument name must be deduped. An index is appended to any duplicates e.g. `region(language: $language1)`.
+* As this tool is used for tests, it expands all of the fields in a query. There might be recursive fields in the query, so `gqlg` ignores the types which have been added in the parent queries already.
+* Variable names are derived from argument names, so variables generated from multiple occurrences of the same argument name must be deduped. An index is appended to any duplicates e.g. `region(language: $language1)`.
 
 > [Donate with bitcoin](https://getcryptoo.github.io/)
